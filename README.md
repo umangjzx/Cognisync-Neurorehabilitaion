@@ -1,9 +1,3 @@
-Here is your **final, cleaned, professional GitHub README** for your repository
-➡ **[https://github.com/umangjzx/Cognisync-Neurorehabilitaion.git](https://github.com/umangjzx/Cognisync-Neurorehabilitaion.git)**
-Everything is polished, structured, and ready to upload **exactly as-is**.
-
----
-
 # **CogniSync – GenAI-Powered Music Therapy Platform**
 
 ### *Empowering neurorehabilitation through AI-personalized rhythmic therapy & real-time adaptive entrainment.*
@@ -254,8 +248,3 @@ This project is licensed under the **MIT License**.
 * Open-source contributors
 
 ---
-
-If you want, I can also:
-✅ Build your **project folder structure**
-✅ Generate **backend code**, **database ORM models**, **UI templates**, **therapy engine**, etc.
-Just say **“build full project code”** 🚀
