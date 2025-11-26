@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+
+{% block title %}Baseline Assessment - CogniSync{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card stats-card animate__animated animate__fadeIn">
+                <div class="card-header text-center position-relative">
+                    <h4 class="card-title mb-0">
+                        <i data-feather="clipboard" class="me-2" style="stroke: var(--neuro-primary);"></i>
+                        Baseline Assessment
+                    </h4>
+                    <p class="text-muted mb-0">Establish baseline measurements for personalized therapy</p>
+                    <div class="beat-visualizer-ring" style="width: 100px; height: 100px; opacity: 0.2; position: absolute; top: 10px; right: 10px;"></div>
+                </div>
+                <div class="card-body">
+                    <!-- Assessment Type Selection -->
+                    <div class="mb-4">
+                        <h5 class="text-center mb-3 animate__animated animate__fadeIn">Select Assessment Type</h5>
+                        <div class="row g-4">
+                            <div class="col-md-4">
+                                <div class="stats-card therapy-module assessment-card border-primary animate__animated animate__zoomIn" data-assessment="gait" style="animation-delay: 0.1s;">
+                                    <div class="card-body text-center">
+                                        <i data-feather="activity" class="mb-3 beat-indicator" style="width: 48px; height: 48px;"></i>
+                                        <h5>Gait Assessment</h5>
+                                        <p class="text-muted small">Measure walking cadence and rhythm</p>
+                                        <span class="badge bg-primary">All Conditions</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stats-card therapy-module assessment-card border-secondary animate__animated animate__zoomIn" data-assessment="tapping" style="animation-delay: 0.2s;">
+                                    <div class="card-body text-center">
+                                        <i data-feather="target" class="mb-3 beat-indicator" style="width: 48px; height: 48px;"></i>
+                                        <h5>Fine Motor Assessment</h5>
+                                        <p class="text-muted small">Test fine motor control and dexterity</p>
+                                        <span class="badge bg-secondary">Motor Skills</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stats-card therapy-module assessment-card border-info animate__animated animate__zoomIn" data-assessment="speech" style="animation-delay: 0.3s;">
+                                    <div class="card-body text-center">
+                                        <i data-feather="mic" class="mb-3 beat-indicator" style="width: 48px; height: 48px;"></i>
+                                        <h5>Speech Assessment</h5>
+                                        <p class="text-muted small">Evaluate speech clarity and rate</p>
+                                        <span class="badge bg-info">Communication</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stroke-specific assessments -->
+                        <div class="row g-4 mt-2" id="strokeAssessments">
+                            <div class="col-md-4">
+                                <div class="stats-card therapy-module assessment-card border-warning animate__animated animate__zoomIn" data-assessment="balance" style="animation-delay: 0.4s;">
+                                    <div class="card-body text-center">
+                                        <i data-feather="crosshair" class="mb-3 beat-indicator" style="width: 48px; height: 48px;"></i>
+                                        <h5>Balance Assessment</h5>
+                                        <p class="text-muted small">Test static and dynamic balance</p>
+                                        <span class="badge bg-warning">Stroke Specific</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stats-card therapy-module assessment-card border-success animate__animated animate__zoomIn" data-assessment="coordination" style="animation-delay: 0.5s;">
+                                    <div class="card-body text-center">
+                                        <i data-feather="shuffle" class="mb-3 beat-indicator" style="width: 48px; height: 48px;"></i>
+                                        <h5>Coordination Assessment</h5>
+                                        <p class="text-muted small">Evaluate limb coordination</p>
+                                        <span class="badge bg-success">Stroke Specific</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stats-card therapy-module assessment-card border-danger animate__animated animate__zoomIn" data-assessment="cognitive" style="animation-delay: 0.6s;">
+                                    <div class="card-body text-center">
+                                        <i data-feather="cpu" class="mb-3 beat-indicator" style="width: 48px; height: 48px;"></i>
+                                        <h5>Cognitive Assessment</h5>
+                                        <p class="text-muted small">Test attention and processing</p>
+                                        <span class="badge bg-danger">Stroke Specific</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Assessment Form -->
+                    <form method="POST" id="assessmentForm" style="display: none;" onsubmit="return validateForm()">
+                        <input type="hidden" id="assessment_type" name="assessment_type" value="">
+
+                        {% if patients %}
+                        <div class="mb-4 animate__animated animate__fadeInUp">
+                            <label for="patient_id" class="form-label">Select Patient</label>
+                            <select class="form-select" id="patient_id" name="patient_id" required>
+                                <option value="">Choose a patient...</option>
+                                {% for patient in patients %}
+                                <option value="{{ patient.id }}">
+                                    {{ patient.user.first_name }} {{ patient.user.last_name }} 
+                                    ({{ patient.condition.replace('_', ' ').title() }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        <div id="assessmentInstructions" class="alert alert-info mb-4 animate__animated animate__fadeInUp">
+                            <i data-feather="info" class="me-2"></i>
+                            <span id="instructionText">Select an assessment type to begin</span>
+                        </div>
+
+                        <!-- Gait Assessment Specific -->
+                        <div id="gaitAssessment" class="assessment-section stats-card" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="gait_cadence" class="form-label">Walking Cadence (steps/minute)</label>
+                                    <input type="number" class="form-control" id="gait_cadence" name="measured_value" 
+                                           min="40" max="180" step="1" placeholder="e.g., 120" required>
+                                    <div class="form-text">Normal range: 100-140 steps/minute</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stats-card mt-4">
+                                        <div class="card-body text-center">
+                                            <button type="button" class="btn btn-outline-primary session-btn" id="measureGaitBtn">
+                                                <i data-feather="clock" class="me-2"></i>
+                                                Measure for 30s
+                                            </button>
+                                            <div id="gaitTimer" class="mt-2" style="display: none;">
+                                                <span class="h4 session-timer" id="gaitCountdown">30</span>
+                                                <div><small class="text-muted">Count each step</small></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tapping Assessment Specific -->
+                        <div id="tappingAssessment" class="assessment-section stats-card" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="tapping_speed" class="form-label">Tapping Speed (taps/minute)</label>
+                                    <input type="number" class="form-control" id="tapping_speed" name="measured_value" 
+                                           min="30" max="300" step="1" placeholder="e.g., 180" required>
+                                    <div class="form-text">Normal range: 150-250 taps/minute</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stats-card mt-4">
+                                        <div class="card-body text-center">
+                                            <button type="button" class="btn btn-outline-primary session-btn" id="measureTappingBtn">
+                                                <i data-feather="clock" class="me-2"></i>
+                                                Measure for 15s
+                                            </button>
+                                            <div id="tappingTimer" class="mt-2" style="display: none;">
+                                                <span class="h4 session-timer" id="tappingCountdown">15</span>
+                                                <div><small class="text-muted">Tap spacebar rapidly</small></div>
+                                                <div class="mt-2">
+                                                    <span class="h5">Taps: <span id="tapCount">0</span></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Speech Assessment Specific -->
+                        <div id="speechAssessment" class="assessment-section stats-card" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="speech_rate" class="form-label">Speech Rate (syllables/minute)</label>
+                                    <input type="number" class="form-control" id="speech_rate" name="measured_value" 
+                                           min="60" max="300" step="1" placeholder="e.g., 200" required>
+                                    <div class="form-text">Normal range: 180-220 syllables/minute</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stats-card mt-4">
+                                        <div class="card-body">
+                                            <h6>Sample Text</h6>
+                                            <p class="small text-muted">
+                                                "The quick brown fox jumps over the lazy dog. 
+                                                She sells seashells by the seashore."
+                                            </p>
+                                            <button type="button" class="btn btn-outline-primary btn-sm session-btn" id="measureSpeechBtn">
+                                                <i data-feather="mic" class="me-2"></i>
+                                                Read Aloud (30s)
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Balance Assessment Specific -->
+                        <div id="balanceAssessment" class="assessment-section stats-card" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="balance_score" class="form-label">Balance Score (0-56 Berg Balance Scale)</label>
+                                    <input type="number" class="form-control" id="balance_score" name="measured_value" 
+                                           min="0" max="56" step="1" placeholder="e.g., 45" required>
+                                    <div class="form-text">High fall risk: &lt;45, Low fall risk: 45-56</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stats-card mt-4">
+                                        <div class="card-body">
+                                            <h6>Assessment Instructions</h6>
+                                            <ul class="small text-muted">
+                                                <li>Standing with eyes closed</li>
+                                                <li>Standing on one foot</li>
+                                                <li>Turning 360 degrees</li>
+                                                <li>Standing with feet together</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Coordination Assessment Specific -->
+                        <div id="coordinationAssessment" class="assessment-section stats-card" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="coordination_time" class="form-label">Finger-to-Nose Time (seconds)</label>
+                                    <input type="number" class="form-control" id="coordination_time" name="measured_value" 
+                                           min="1" max="60" step="0.1" placeholder="e.g., 3.5" required>
+                                    <div class="form-text">Average time to complete 10 repetitions</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stats-card mt-4">
+                                        <div class="card-body">
+                                            <h6>Test Instructions</h6>
+                                            <p class="small text-muted">
+                                                Have patient touch nose then examiner's finger alternately
+                                                10 times with each hand. Record average time per repetition.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cognitive Assessment Specific -->
+                        <div id="cognitiveAssessment" class="assessment-section stats-card" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="cognitive_score" class="form-label">MoCA Score (0-30)</label>
+                                    <input type="number" class="form-control" id="cognitive_score" name="measured_value" 
+                                           min="0" max="30" step="1" placeholder="e.g., 24" required>
+                                    <div class="form-text">Normal: ≥26, Mild impairment: 18-25, Severe: &lt;18</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stats-card mt-4">
+                                        <div class="card-body">
+                                            <h6>Montreal Cognitive Assessment</h6>
+                                            <ul class="small text-muted">
+                                                <li>Executive function</li>
+                                                <li>Memory</li>
+                                                <li>Language</li>
+                                                <li>Attention & concentration</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notes Section -->
+                        <div class="mb-4" id="notesSection" style="display: none;">
+                            <label for="notes" class="form-label">Assessment Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                      placeholder="Any observations or additional notes about the assessment..."></textarea>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="text-center" id="submitSection" style="display: none;">
+                            <button type="submit" class="btn btn-success btn-lg session-btn">
+                                <i data-feather="save" class="me-2"></i>
+                                Save Baseline Assessment
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-lg session-btn ms-2" onclick="resetForm()">
+                                <i data-feather="refresh-cw" class="me-2"></i>
+                                Reset
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- No Patients Message for Clinicians -->
+                    {% if not patients %}
+                    <div class="text-center py-5 animate__animated animate__fadeIn">
+                        <i data-feather="users" class="mb-3 beat-indicator" style="width: 64px; height: 64px; opacity: 0.5;"></i>
+                        <h5 class="text-muted">No Patients Assigned</h5>
+                        <p class="text-muted">You need to have patients assigned to perform baseline assessments.</p>
+                        <a href="{{ url_for('clinician_dashboard') }}" class="btn btn-primary session-btn">
+                            <i data-feather="arrow-left" class="me-2"></i>
+                            Back to Dashboard
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.assessment-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.assessment-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(155, 89, 182, 0.35);
+}
+
+.assessment-card.selected {
+    background: rgba(155, 89, 182, 0.1);
+    border-width: 2px;
+}
+
+.assessment-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, rgba(155, 89, 182, 0.1), rgba(0, 255, 157, 0.1));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.assessment-card:hover::before {
+    opacity: 1;
+}
+
+.assessment-section {
+    background: rgba(26, 26, 46, 0.5);
+    backdrop-filter: blur(8px);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(155, 89, 182, 0.2);
+}
+
+#gaitTimer, #tappingTimer {
+    background: rgba(155, 89, 182, 0.2);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--neuro-primary);
+}
+</style>
+
+<script>
+let selectedAssessment = null;
+let measurementTimer = null;
+let measurementActive = false;
+let tapCount = 0;
+
+// Assessment type selection
+document.querySelectorAll('.assessment-card').forEach(card => {
+    card.addEventListener('click', function() {
+        const assessmentType = this.dataset.assessment;
+        selectAssessment(assessmentType);
+    });
+});
+
+function selectAssessment(type) {
+    // Remove previous selection
+    document.querySelectorAll('.assessment-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+
+    // Hide all assessment sections
+    document.querySelectorAll('.assessment-section').forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Select new assessment
+    selectedAssessment = type;
+    document.querySelector(`[data-assessment="${type}"]`).classList.add('selected');
+    document.getElementById('assessment_type').value = type;
+
+    // Show form and relevant sections
+    document.getElementById('assessmentForm').style.display = 'block';
+    document.getElementById('notesSection').style.display = 'block';
+    document.getElementById('submitSection').style.display = 'block';
+
+    // Show specific assessment section
+    document.getElementById(`${type}Assessment`).style.display = 'block';
+
+    // Update instructions
+    const instructions = {
+        gait: 'Walk at your normal pace for 30 seconds while counting steps, or have someone count for you.',
+        tapping: 'Tap with your index finger as quickly and consistently as possible for 15 seconds.',
+        speech: 'Read the sample text aloud at your normal speaking pace for 30 seconds.',
+        balance: 'Perform balance tasks according to the Berg Balance Scale. Score each task 0-4.',
+        coordination: 'Perform finger-to-nose test alternating between nose and examiner finger.',
+        cognitive: 'Complete the Montreal Cognitive Assessment (MoCA) test with all domains.'
+    };
+
+    document.getElementById('instructionText').textContent = instructions[type] || 'Please follow the assessment guidelines.';
+
+    feather.replace();
+}
+
+// Gait measurement
+document.getElementById('measureGaitBtn').addEventListener('click', function() {
+    if (measurementActive) return;
+
+    measurementActive = true;
+    this.disabled = true;
+    document.getElementById('gaitTimer').style.display = 'block';
+
+    let countdown = 30;
+    const countdownElement = document.getElementById('gaitCountdown');
+
+    measurementTimer = setInterval(() => {
+        countdown--;
+        countdownElement.textContent = countdown;
+
+        if (countdown <= 0) {
+            clearInterval(measurementTimer);
+            measurementActive = false;
+            document.getElementById('measureGaitBtn').disabled = false;
+            document.getElementById('gaitTimer').style.display = 'none';
+
+            const steps = prompt('How many steps did you count in 30 seconds?');
+            if (steps && !isNaN(steps)) {
+                const cadence = Math.round(steps * 2);
+                document.getElementById('gait_cadence').value = cadence;
+            }
+        }
+    }, 1000);
+});
+
+// Tapping measurement
+document.getElementById('measureTappingBtn').addEventListener('click', function() {
+    if (measurementActive) return;
+
+    measurementActive = true;
+    this.disabled = true;
+    tapCount = 0;
+    document.getElementById('tappingTimer').style.display = 'block';
+    document.getElementById('tapCount').textContent = '0';
+
+    let countdown = 15;
+    const countdownElement = document.getElementById('tappingCountdown');
+
+    const tapHandler = (e) => {
+        if (e.code === 'Space' && measurementActive) {
+            e.preventDefault();
+            tapCount++;
+            document.getElementById('tapCount').textContent = tapCount;
+            document.getElementById('tapCount').classList.add('animate__animated', 'animate__pulse');
+            setTimeout(() => document.getElementById('tapCount').classList.remove('animate__pulse'), 300);
+        }
+    };
+
+    document.addEventListener('keydown', tapHandler);
+
+    measurementTimer = setInterval(() => {
+        countdown--;
+        countdownElement.textContent = countdown;
+
+        if (countdown <= 0) {
+            clearInterval(measurementTimer);
+            measurementActive = false;
+            document.removeEventListener('keydown', tapHandler);
+            document.getElementById('measureTappingBtn').disabled = false;
+            document.getElementById('tappingTimer').style.display = 'none';
+
+            const tapsPerMinute = Math.round(tapCount * 4);
+            document.getElementById('tapping_speed').value = tapsPerMinute;
+        }
+    }, 1000);
+});
+
+// Speech measurement
+document.getElementById('measureSpeechBtn').addEventListener('click', function() {
+    if (measurementActive) return;
+
+    alert('Read the sample text aloud at your normal pace for 30 seconds. Count the syllables you speak and enter the result manually.');
+
+    const syllables = prompt('How many syllables did you speak in 30 seconds?');
+    if (syllables && !isNaN(syllables)) {
+        const speechRate = Math.round(syllables * 2);
+        document.getElementById('speech_rate').value = speechRate;
+    }
+});
+
+function resetForm() {
+    selectedAssessment = null;
+    document.getElementById('assessmentForm').style.display = 'none';
+    document.querySelectorAll('.assessment-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+
+    document.getElementById('assessmentForm').reset();
+
+    if (measurementTimer) {
+        clearInterval(measurementTimer);
+        measurementTimer = null;
+    }
+    measurementActive = false;
+    tapCount = 0;
+
+    document.getElementById('instructionText').textContent = 'Select an assessment type to begin';
+    feather.replace();
+}
+
+// Form validation function
+function validateForm() {
+    console.log('Form validation started...');
+
+    const assessmentType = document.getElementById('assessment_type').value;
+
+    if (!assessmentType) {
+        const error = document.createElement('div');
+        error.className = 'alert alert-danger animate__animated animate__shakeX';
+        error.textContent = 'Please select an assessment type.';
+        document.querySelector('.card-body').prepend(error);
+        setTimeout(() => error.remove(), 3000);
+        return false;
+    }
+
+    const patientId = document.getElementById('patient_id')?.value;
+    if (!patientId && document.getElementById('patient_id')) {
+        const error = document.createElement('div');
+        error.className = 'alert alert-danger animate__animated animate__shakeX';
+        error.textContent = 'Please select a patient.';
+        document.querySelector('.card-body').prepend(error);
+        setTimeout(() => error.remove(), 3000);
+        return false;
+    }
+
+    let measuredValue;
+    let inputElement;
+
+    const inputMapping = {
+        'gait': 'gait_cadence',
+        'tapping': 'tapping_speed', 
+        'speech': 'speech_rate',
+        'balance': 'balance_score',
+        'coordination': 'coordination_time',
+        'cognitive': 'cognitive_score'
+    };
+
+    const inputId = inputMapping[assessmentType];
+    if (inputId) {
+        inputElement = document.getElementById(inputId);
+        measuredValue = inputElement ? inputElement.value : '';
+    }
+
+    if (!measuredValue || isNaN(measuredValue) || parseFloat(measuredValue) <= 0) {
+        const error = document.createElement('div');
+        error.className = 'alert alert-danger animate__animated animate__shakeX';
+        error.textContent = 'Please enter a valid measurement value greater than 0.';
+        document.querySelector('.card-body').prepend(error);
+        setTimeout(() => error.remove(), 3000);
+        if (inputElement) inputElement.focus();
+        return false;
+    }
+
+    console.log('Form validation passed, submitting with value:', measuredValue);
+    return true;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    feather.replace();
+
+    // Add interactive effects for cards and buttons
+    const cards = document.querySelectorAll('.assessment-card');
+    cards.forEach(card => {
+        card.addEventListener('mouseenter', () => {
+            card.classList.add('active');
+        });
+        card.addEventListener('mouseleave', () => {
+            card.classList.remove('active');
+        });
+    });
+
+    const buttons = document.querySelectorAll('.session-btn');
+    buttons.forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+            btn.style.transform = 'translateY(-3px) scale(1.05)';
+            btn.style.boxShadow = '0 8px 25px rgba(155, 89, 182, 0.5)';
+        });
+        btn.addEventListener('mouseleave', () => {
+            btn.style.transform = 'translateY(0) scale(1)';
+            btn.style.boxShadow = '0 4px 15px rgba(155, 89, 182, 0.35)';
+        });
+    });
+
+    // Animate beat visualizer ring
+    const ring = document.querySelector('.beat-visualizer-ring');
+    if (ring) {
+        setInterval(() => {
+            ring.classList.toggle('active');
+        }, 2000);
+    }
+});
+</script>
+{% endblock %}

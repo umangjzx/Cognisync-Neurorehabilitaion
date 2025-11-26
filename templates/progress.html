@@ -1,0 +1,1673 @@
+{% extends "base.html" %}
+
+{% block title %}Progress Report - CogniSync{% endblock %}
+
+{% block content %}
+<!-- Enhanced Header with Gradient Background -->
+<div class="progress-header mb-5">
+    <div class="row align-items-center">
+        <div class="col-lg-8">
+            <div class="header-content">
+                <div class="d-flex align-items-center mb-2">
+                    <div class="profile-avatar me-3">
+                        <i data-feather="user" class="avatar-icon"></i>
+                    </div>
+                    <div>
+                        <h1 class="display-6 mb-0 gradient-text">Progress Journey</h1>
+                        <p class="lead mb-0">{{ patient_profile.user.first_name }} {{ patient_profile.user.last_name }}</p>
+                    </div>
+                </div>
+                <div class="condition-badge">
+                    <span class="badge condition-tag">
+                        <i data-feather="heart" class="me-1"></i>
+                        {{ patient_profile.condition.replace('_', ' ').title() }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+            <a href="{% if user.user_type == 'patient' %}{{ url_for('patient_dashboard') }}{% else %}{{ url_for('clinician_dashboard') }}{% endif %}" 
+               class="btn btn-outline-primary btn-lg floating-btn">
+                <i data-feather="arrow-left" class="me-2"></i>
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Summary Stats with Animations -->
+<div class="stats-overview mb-5">
+    <div class="row g-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card hover-lift" data-aos="fade-up" data-aos-delay="100">
+                <div class="stats-icon activity-icon">
+                    <i data-feather="activity"></i>
+                </div>
+                <div class="stats-content">
+                    <h3 class="stats-number" data-count="{{ sessions|length }}">{{ sessions|length }}</h3>
+                    <p class="stats-label">Total Sessions</p>
+                    <div class="stats-progress">
+                        <div class="progress-ring">
+                            <svg class="progress-ring-svg" width="60" height="60">
+                                <circle class="progress-ring-circle-bg" cx="30" cy="30" r="25"></circle>
+                                <circle class="progress-ring-circle" cx="30" cy="30" r="25" 
+                                        style="stroke-dasharray: 157; stroke-dashoffset: {{ 157 - (sessions|length * 5.23) if sessions|length < 30 else 0 }};"></circle>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card hover-lift" data-aos="fade-up" data-aos-delay="200">
+                <div class="stats-icon time-icon">
+                    <i data-feather="clock"></i>
+                </div>
+                <div class="stats-content">
+                    <h3 class="stats-number" data-count="{{ (sessions|sum(attribute='duration_seconds') // 60) or 0 }}">{{ (sessions|sum(attribute='duration_seconds') // 60) or 0 }}</h3>
+                    <p class="stats-label">Total Minutes</p>
+                    <div class="time-visual">
+                        <div class="time-bar" style="width: {{ ((sessions|sum(attribute='duration_seconds') // 60) / 600 * 100) if sessions else 0 }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card hover-lift" data-aos="fade-up" data-aos-delay="300">
+                <div class="stats-icon accuracy-icon">
+                    <i data-feather="target"></i>
+                </div>
+                <div class="stats-content">
+                    {% set avg_accuracy = ((sessions|selectattr('accuracy_score')|sum(attribute='accuracy_score')) / (sessions|selectattr('accuracy_score')|list|length))|round|int if sessions|selectattr('accuracy_score')|list else 0 %}
+                    <h3 class="stats-number" data-count="{{ avg_accuracy }}">{{ avg_accuracy }}%</h3>
+                    <p class="stats-label">Avg Accuracy</p>
+                    <div class="accuracy-gauge">
+                        <div class="gauge-fill" style="transform: rotate({{ (avg_accuracy * 1.8) - 90 }}deg)"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card hover-lift" data-aos="fade-up" data-aos-delay="400">
+                <div class="stats-icon bpm-icon">
+                    <i data-feather="trending-up"></i>
+                </div>
+                <div class="stats-content">
+                    {% set current_bpm = sessions[-1].final_bpm|round|int if sessions and sessions[-1].final_bpm else (patient_profile.baseline_cadence|round|int if patient_profile.baseline_cadence else 0) %}
+                    <h3 class="stats-number" data-count="{{ current_bpm }}">{{ current_bpm if current_bpm != 0 else 'N/A' }}</h3>
+                    <p class="stats-label">Current BPM</p>
+                    <div class="bpm-pulse">
+                        <div class="pulse-dot"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Charts and Details Section -->
+<div class="row g-4 mb-5">
+    <!-- Interactive Progress Chart -->
+    <div class="col-xl-8">
+        <div class="card chart-card" data-aos="fade-right">
+            <div class="card-header gradient-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="trending-up" class="me-2"></i>
+                        Progress Timeline
+                    </h5>
+                    <div class="chart-controls">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary active" data-period="all">All</button>
+                            <button class="btn btn-sm btn-outline-primary" data-period="30">30d</button>
+                            <button class="btn btn-sm btn-outline-primary" data-period="7">7d</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body chart-body">
+                <div class="chart-container">
+                    <canvas id="progressChart"></canvas>
+                </div>
+                <div class="chart-legend mt-3">
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div class="legend-color accuracy-color"></div>
+                            <span>Accuracy Score</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color bpm-color"></div>
+                            <span>BPM Progress</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color baseline-color"></div>
+                            <span>Baseline</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color target-color"></div>
+                            <span>Target</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhanced Progress Details -->
+    <div class="col-xl-4">
+        <div class="card details-card h-100" data-aos="fade-left">
+            <div class="card-header gradient-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="info" class="me-2"></i>
+                    Insights & Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Baseline Metrics -->
+                <div class="insight-section mb-4">
+                    <h6 class="section-title">
+                        <i data-feather="compass" class="me-2"></i>
+                        Baseline Assessment
+                    </h6>
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <div class="metric-value">{{ patient_profile.baseline_cadence|round|int if patient_profile.baseline_cadence else 'N/A' }}</div>
+                            <div class="metric-label">Starting BPM</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value">{{ patient_profile.target_cadence|round|int if patient_profile.target_cadence else 'N/A' }}</div>
+                            <div class="metric-label">Target BPM</div>
+                        </div>
+                    </div>
+                    {% if patient_profile.baseline_cadence and patient_profile.target_cadence %}
+                    <div class="progress-to-goal mt-3">
+                        {% set goal_progress = ((current_bpm - patient_profile.baseline_cadence) / (patient_profile.target_cadence - patient_profile.baseline_cadence) * 100)|round if current_bpm > 0 else 0 %}
+                        <div class="goal-progress-bar">
+                            <div class="goal-progress-fill" style="width: {{ [goal_progress, 100]|min }}%"></div>
+                        </div>
+                        <small class="text-muted">{{ [goal_progress, 100]|min }}% to target</small>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if sessions %}
+                <!-- Recent Performance -->
+                <div class="insight-section mb-4">
+                    <h6 class="section-title">
+                        <i data-feather="zap" class="me-2"></i>
+                        Recent Performance
+                    </h6>
+                    <div class="performance-list">
+                        {% set recent_sessions = sessions[-5:] %}
+                        {% for session in recent_sessions %}
+                        <div class="performance-item">
+                            <div class="performance-date">{{ session.start_time.strftime('%m/%d') }}</div>
+                            <div class="performance-score">
+                                <span class="badge performance-badge {% if session.accuracy_score >= 80 %}excellent{% elif session.accuracy_score >= 60 %}good{% else %}needs-work{% endif %}">
+                                    {{ session.accuracy_score|round|int if session.accuracy_score else 'N/A' }}%
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Trend Analysis -->
+                <div class="insight-section">
+                    <h6 class="section-title">
+                        <i data-feather="bar-chart-2" class="me-2"></i>
+                        Trend Analysis
+                    </h6>
+                    {% set first_half = sessions[:sessions|length//2] if sessions|length > 4 else sessions[:2] %}
+                    {% set second_half = sessions[sessions|length//2:] if sessions|length > 4 else sessions[2:] %}
+                    {% if first_half and second_half %}
+                        {% set first_avg = (first_half|selectattr('accuracy_score')|sum(attribute='accuracy_score')) / (first_half|selectattr('accuracy_score')|list|length) if first_half|selectattr('accuracy_score')|list else 0 %}
+                        {% set second_avg = (second_half|selectattr('accuracy_score')|sum(attribute='accuracy_score')) / (second_half|selectattr('accuracy_score')|list|length) if second_half|selectattr('accuracy_score')|list else 0 %}
+                        {% set improvement = second_avg - first_avg %}
+                        <div class="trend-display">
+                            {% if improvement > 5 %}
+                                <div class="trend-icon improving">
+                                    <i data-feather="trending-up"></i>
+                                </div>
+                                <div class="trend-content">
+                                    <div class="trend-label">Improving Trend</div>
+                                    <div class="trend-value">+{{ improvement|round|int }}%</div>
+                                </div>
+                            {% elif improvement < -5 %}
+                                <div class="trend-icon declining">
+                                    <i data-feather="trending-down"></i>
+                                </div>
+                                <div class="trend-content">
+                                    <div class="trend-label">Declining Trend</div>
+                                    <div class="trend-value">{{ improvement|round|int }}%</div>
+                                </div>
+                            {% else %}
+                                <div class="trend-icon stable">
+                                    <i data-feather="minus"></i>
+                                </div>
+                                <div class="trend-content">
+                                    <div class="trend-label">Stable Progress</div>
+                                    <div class="trend-value">{{ improvement|round|int }}%</div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i data-feather="calendar" class="empty-icon"></i>
+                            <p class="empty-text">Need more sessions for trend analysis</p>
+                        </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="empty-state-large">
+                    <div class="empty-animation">
+                        <i data-feather="calendar"></i>
+                    </div>
+                    <h6>No Sessions Yet</h6>
+                    <p class="text-muted">Start your therapeutic journey to see insights here</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Session History -->
+<div class="row">
+    <div class="col-12">
+        <div class="card history-card" data-aos="fade-up">
+            <div class="card-header gradient-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="list" class="me-2"></i>
+                        Session History
+                    </h5>
+                    {% if sessions %}
+                    <div class="table-controls">
+                        <div class="search-box">
+                            <input type="text" id="sessionSearch" placeholder="Search sessions..." class="form-control form-control-sm">
+                            <i data-feather="search" class="search-icon"></i>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                {% if sessions %}
+                    <div class="table-container">
+                        <table class="table session-table" id="sessionHistoryTable">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" data-column="date">
+                                        <span>Date & Time</span>
+                                        <i data-feather="chevron-down" class="sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="type">
+                                        <span>Type</span>
+                                        <i data-feather="chevron-down" class="sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="duration">
+                                        <span>Duration</span>
+                                        <i data-feather="chevron-down" class="sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="bpm">
+                                        <span>BPM Progress</span>
+                                        <i data-feather="chevron-down" class="sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="accuracy">
+                                        <span>Accuracy</span>
+                                        <i data-feather="chevron-down" class="sort-icon"></i>
+                                    </th>
+                                    <th>Notes</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for session in sessions|reverse %}
+                                <tr class="session-row" data-session-id="{{ session.id }}">
+                                    <td class="session-date">
+                                        <div class="date-display">
+                                            <div class="date-primary">{{ session.start_time.strftime('%m/%d/%Y') }}</div>
+                                            <div class="date-secondary">{{ session.start_time.strftime('%I:%M %p') }}</div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="session-type-badge">
+                                            <i data-feather="play-circle" class="me-1"></i>
+                                            {{ session.session_type.replace('_', ' ').title() }}
+                                        </span>
+                                    </td>
+                                    <td class="duration-cell">
+                                        <div class="duration-display">
+                                            <span class="duration-value">{{ (session.duration_seconds // 60) if session.duration_seconds else 'N/A' }}</span>
+                                            <span class="duration-unit">min</span>
+                                        </div>
+                                    </td>
+                                    <td class="bpm-cell">
+                                        <div class="bpm-progress">
+                                            <span class="bpm-start">{{ session.initial_bpm|round|int }}</span>
+                                            {% if session.final_bpm and session.final_bpm != session.initial_bpm %}
+                                                <div class="bpm-arrow">
+                                                    {% if session.final_bpm > session.initial_bpm %}
+                                                        <i data-feather="arrow-up" class="text-success"></i>
+                                                    {% elif session.final_bpm < session.initial_bpm %}
+                                                        <i data-feather="arrow-down" class="text-danger"></i>
+                                                    {% else %}
+                                                        <i data-feather="minus" class="text-muted"></i>
+                                                    {% endif %}
+                                                </div>
+                                                <span class="bpm-end">{{ session.final_bpm|round|int }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="accuracy-cell">
+                                        {% if session.accuracy_score %}
+                                            <div class="accuracy-display">
+                                                <span class="accuracy-badge {% if session.accuracy_score >= 80 %}excellent{% elif session.accuracy_score >= 60 %}good{% else %}needs-work{% endif %}">
+                                                    {{ session.accuracy_score|round|int }}%
+                                                </span>
+                                                <div class="accuracy-bar">
+                                                    <div class="accuracy-fill" style="width: {{ session.accuracy_score }}%"></div>
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <span class="badge bg-secondary">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="notes-cell">
+                                        {% if session.notes %}
+                                            <div class="notes-preview" title="{{ session.notes }}">
+                                                {{ session.notes[:30] }}{% if session.notes|length > 30 %}...{% endif %}
+                                            </div>
+                                        {% else %}
+                                            <span class="no-notes">No notes</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="actions-cell">
+                                        <div class="action-buttons">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewSessionDetails({{ session.id }})">
+                                                <i data-feather="eye"></i>
+                                            </button>
+                                            {% if session.notes %}
+                                            <button class="btn btn-sm btn-outline-info" onclick="showNotes({{ session.id }}, '{{ session.notes|e }}')">
+                                                <i data-feather="file-text"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="empty-state-large">
+                        <div class="empty-animation">
+                            <i data-feather="calendar"></i>
+                        </div>
+                        <h5>No Sessions Recorded Yet</h5>
+                        <p class="text-muted mb-4">Your therapy sessions will appear here once you start your journey</p>
+                        <a href="{% if user.user_type == 'patient' %}{{ url_for('patient_dashboard') }}{% else %}{{ url_for('clinician_dashboard') }}{% endif %}" class="btn btn-primary">
+                            <i data-feather="play" class="me-2"></i>
+                            Start First Session
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Session Details Modal -->
+<div class="modal fade" id="sessionDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Session Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="sessionDetailsContent">
+                <!-- Session details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notes Modal -->
+<div class="modal fade" id="notesModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Session Notes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="notesContent">
+                <!-- Notes content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Enhanced Progress Report Styles */
+.progress-header {
+    background: linear-gradient(135deg, rgba(0, 105, 148, 0.1), rgba(135, 206, 235, 0.05));
+    padding: 2rem;
+    border-radius: 15px;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(240, 248, 255, 0.2);
+}
+
+.profile-avatar {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--neuro-primary), var(--neuro-info));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-icon {
+    width: 30px;
+    height: 30px;
+    color: white;
+}
+
+.gradient-text {
+    background: linear-gradient(135deg, var(--neuro-light), var(--neuro-primary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.condition-tag {
+    background: linear-gradient(135deg, var(--neuro-primary), var(--neuro-info));
+    color: white;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.floating-btn {
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 105, 148, 0.3);
+}
+
+.floating-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 105, 148, 0.4);
+}
+
+/* Enhanced Stats Cards */
+.stats-card {
+    background: linear-gradient(135deg, rgba(0, 105, 148, 0.15), rgba(135, 206, 235, 0.05));
+    border: 1px solid rgba(240, 248, 255, 0.2);
+    border-radius: 15px;
+    padding: 2rem;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0, 105, 148, 0.2);
+}
+
+.stats-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.activity-icon { background: linear-gradient(135deg, #28a745, #20c997); }
+.time-icon { background: linear-gradient(135deg, #007bff, #6f42c1); }
+.accuracy-icon { background: linear-gradient(135deg, #ffc107, #fd7e14); }
+.bpm-icon { background: linear-gradient(135deg, #dc3545, #e83e8c); }
+
+.stats-icon i {
+    width: 24px;
+    height: 24px;
+    color: white;
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--neuro-light);
+    margin: 0;
+    line-height: 1;
+}
+
+.stats-label {
+    font-size: 0.9rem;
+    color: rgba(240, 248, 255, 0.8);
+    margin: 0.5rem 0 0;
+}
+
+/* Progress Ring */
+.progress-ring {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.progress-ring-circle-bg {
+    fill: none;
+    stroke: rgba(240, 248, 255, 0.2);
+    stroke-width: 3;
+}
+
+.progress-ring-circle {
+    fill: none;
+    stroke: var(--neuro-success);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s ease-in-out;
+}
+
+/* Time Visual */
+.time-visual {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(240, 248, 255, 0.2);
+}
+
+.time-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neuro-info), var(--neuro-primary));
+    transition: width 1s ease-in-out;
+}
+
+/* Accuracy Gauge */
+.accuracy-gauge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 20px;
+    border: 2px solid rgba(240, 248, 255, 0.3);
+    border-top: 2px solid var(--neuro-warning);
+    border-radius: 100px 100px 0 0;
+    position: relative;
+}
+
+.gauge-fill {
+    position: absolute;
+    top: -2px;
+    left: 18px;
+    width: 2px;
+    height: 20px;
+    background: var(--neuro-warning);
+    transform-origin: bottom;
+    transition: transform 1s ease-in-out;
+}
+
+/* BPM Pulse */
+.bpm-pulse {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+}
+
+.pulse-dot {
+    width: 12px;
+    height: 12px;
+    background: var(--neuro-danger);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Chart Enhancements */
+.chart-card {
+    border: 1px solid rgba(240, 248, 255, 0.2);
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.gradient-header {
+    background: linear-gradient(135deg, rgba(0, 105, 148, 0.15), rgba(135, 206, 235, 0.05));
+    border-bottom: 1px solid rgba(240, 248, 255, 0.2);
+}
+
+.chart-controls .btn {
+    border-radius: 20px;
+    padding: 0.25rem 1rem;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+.chart-legend {
+    display: flex;
+    justify-content: center;
+}
+
+.legend-items {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.accuracy-color { background: #28a745; }
+.bpm-color { background: #007bff; }
+.baseline-color { background: #6c757d; }
+.target-color { background: #dc3545; }
+
+/* Details Card Enhancements */
+.details-card {
+    border: 1px solid rgba(240, 248, 255, 0.2);
+    border-radius: 15px;
+}
+
+.insight-section {
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(240, 248, 255, 0.1);
+}
+
+.insight-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.section-title {
+    color: var(--neuro-light);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+}
+
+.section-title i {
+    width: 16px;
+    height: 16px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.metric-item {
+    text-align: center;
+    padding: 1rem;
+    background: rgba(240, 248, 255, 0.05);
+    border-radius: 10px;
+    border: 1px solid rgba(240, 248, 255, 0.1);
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--neuro-primary);
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: rgba(240, 248, 255, 0.8);
+    margin-top: 0.25rem;
+}
+
+.progress-to-goal {
+    padding: 1rem;
+    background: rgba(0, 105, 148, 0.1);
+    border-radius: 10px;
+    text-align: center;
+}
+
+.goal-progress-bar {
+    height: 6px;
+    background: rgba(240, 248, 255, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.goal-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neuro-success), var(--neuro-primary));
+    transition: width 1s ease-in-out;
+}
+
+/* Performance List */
+.performance-list {
+    space-y: 0.5rem;
+}
+
+.performance-item {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(240, 248, 255, 0.05);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.performance-date {
+    font-size: 0.85rem;
+    color: rgba(240, 248, 255, 0.8);
+    font-weight: 500;
+}
+
+.performance-badge {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+}
+
+.performance-badge.excellent {
+    background: linear-gradient(135deg, var(--neuro-success), #20c997);
+    color: white;
+}
+
+.performance-badge.good {
+    background: linear-gradient(135deg, var(--neuro-warning), #fd7e14);
+    color: white;
+}
+
+.performance-badge.needs-work {
+    background: linear-gradient(135deg, var(--neuro-danger), #e83e8c);
+    color: white;
+}
+
+/* Trend Display */
+.trend-display {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(240, 248, 255, 0.05);
+    border-radius: 10px;
+}
+
+.trend-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+}
+
+.trend-icon.improving {
+    background: linear-gradient(135deg, var(--neuro-success), #20c997);
+}
+
+.trend-icon.declining {
+    background: linear-gradient(135deg, var(--neuro-danger), #e83e8c);
+}
+
+.trend-icon.stable {
+    background: linear-gradient(135deg, var(--neuro-warning), #fd7e14);
+}
+
+.trend-icon i {
+    width: 20px;
+    height: 20px;
+    color: white;
+}
+
+.trend-label {
+    font-size: 0.9rem;
+    color: rgba(240, 248, 255, 0.8);
+}
+
+.trend-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--neuro-light);
+}
+
+/* Empty States */
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+}
+
+.empty-state-large {
+    text-align: center;
+    padding: 4rem 2rem;
+}
+
+.empty-icon {
+    width: 32px;
+    height: 32px;
+    opacity: 0.5;
+    color: rgba(240, 248, 255, 0.6);
+}
+
+.empty-animation {
+    margin-bottom: 1.5rem;
+}
+
+.empty-animation i {
+    width: 60px;
+    height: 60px;
+    opacity: 0.3;
+    color: rgba(240, 248, 255, 0.6);
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.empty-text {
+    color: rgba(240, 248, 255, 0.8);
+    font-size: 0.9rem;
+}
+
+/* Session History Table */
+.history-card {
+    border: 1px solid rgba(240, 248, 255, 0.2);
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.table-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.search-box {
+    position: relative;
+}
+
+.search-box input {
+    padding-left: 2.5rem;
+    border-radius: 20px;
+    border: 1px solid rgba(240, 248, 255, 0.3);
+    background: rgba(240, 248, 255, 0.1);
+}
+
+.search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: rgba(240, 248, 255, 0.6);
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.session-table {
+    margin-bottom: 0;
+}
+
+.session-table th {
+    background: rgba(240, 248, 255, 0.05);
+    border-bottom: 1px solid rgba(240, 248, 255, 0.2);
+    padding: 1rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.sortable:hover {
+    background: rgba(240, 248, 255, 0.1);
+}
+
+.sortable span {
+    display: flex;
+    align-items: center;
+    justify-content: between;
+}
+
+.sort-icon {
+    width: 14px;
+    height: 14px;
+    margin-left: 0.5rem;
+    opacity: 0.5;
+    transition: all 0.2s ease;
+}
+
+.session-row {
+    transition: all 0.2s ease;
+}
+
+.session-row:hover {
+    background: rgba(240, 248, 255, 0.05);
+}
+
+.session-table td {
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid rgba(240, 248, 255, 0.1);
+}
+
+.date-display {
+    display: flex;
+    flex-direction: column;
+}
+
+.date-primary {
+    font-weight: 600;
+    color: var(--neuro-light);
+    font-size: 0.9rem;
+}
+
+.date-secondary {
+    font-size: 0.8rem;
+    color: rgba(240, 248, 255, 0.7);
+}
+
+.session-type-badge {
+    background: linear-gradient(135deg, var(--neuro-primary), var(--neuro-info));
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+}
+
+.duration-display {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+}
+
+.duration-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--neuro-light);
+}
+
+.duration-unit {
+    font-size: 0.8rem;
+    color: rgba(240, 248, 255, 0.7);
+}
+
+.bmp-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.bpm-start, .bpm-end {
+    font-weight: 600;
+    color: var(--neuro-light);
+}
+
+.bpm-arrow {
+    display: flex;
+    align-items: center;
+}
+
+.bpm-arrow i {
+    width: 16px;
+    height: 16px;
+}
+
+.accuracy-display {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.accuracy-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 50px;
+    text-align: center;
+}
+
+.accuracy-badge.excellent {
+    background: linear-gradient(135deg, var(--neuro-success), #20c997);
+    color: white;
+}
+
+.accuracy-badge.good {
+    background: linear-gradient(135deg, var(--neuro-warning), #fd7e14);
+    color: white;
+}
+
+.accuracy-badge.needs-work {
+    background: linear-gradient(135deg, var(--neuro-danger), #e83e8c);
+    color: white;
+}
+
+.accuracy-bar {
+    width: 60px;
+    height: 4px;
+    background: rgba(240, 248, 255, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.accuracy-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neuro-danger), var(--neuro-warning), var(--neuro-success));
+    transition: width 0.5s ease;
+}
+
+.notes-preview {
+    font-size: 0.85rem;
+    color: rgba(240, 248, 255, 0.8);
+    cursor: pointer;
+}
+
+.notes-preview:hover {
+    color: var(--neuro-primary);
+}
+
+.no-notes {
+    font-size: 0.8rem;
+    color: rgba(240, 248, 255, 0.5);
+    font-style: italic;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+}
+
+.action-buttons i {
+    width: 14px;
+    height: 14px;
+}
+
+/* Modal Enhancements */
+.modal-content {
+    background: var(--neuro-dark);
+    border: 1px solid rgba(240, 248, 255, 0.2);
+    border-radius: 15px;
+}
+
+.modal-header {
+    background: linear-gradient(135deg, rgba(0, 105, 148, 0.15), rgba(135, 206, 235, 0.05));
+    border-bottom: 1px solid rgba(240, 248, 255, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .progress-header {
+        text-align: center;
+        padding: 1.5rem;
+    }
+    
+    .stats-card {
+        padding: 1.5rem;
+    }
+    
+    .stats-number {
+        font-size: 2rem;
+    }
+    
+    .chart-container {
+        height: 250px;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .legend-items {
+        justify-content: center;
+        gap: 1rem;
+    }
+    
+    .table-container {
+        font-size: 0.85rem;
+    }
+    
+    .session-table th,
+    .session-table td {
+        padding: 0.5rem 0.25rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 576px) {
+    .stats-overview .col-lg-3 {
+        margin-bottom: 1rem;
+    }
+    
+    .chart-controls {
+        margin-top: 1rem;
+    }
+    
+    .performance-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .trend-display {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .trend-icon {
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Animation Classes for AOS */
+[data-aos="fade-up"] {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.6s ease;
+}
+
+[data-aos="fade-up"].aos-animate {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+[data-aos="fade-right"] {
+    opacity: 0;
+    transform: translateX(-30px);
+    transition: all 0.6s ease;
+}
+
+[data-aos="fade-right"].aos-animate {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+[data-aos="fade-left"] {
+    opacity: 0;
+    transform: translateX(30px);
+    transition: all 0.6s ease;
+}
+
+[data-aos="fade-left"].aos-animate {
+    opacity: 1;
+    transform: translateX(0);
+}
+</style>
+
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+// Enhanced Progress Report JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize components
+    loadProgressData();
+    initializeTableFeatures();
+    initializeAnimations();
+    animateNumbers();
+    feather.replace();
+});
+
+// Load and display progress chart data
+async function loadProgressData() {
+    try {
+        const response = await fetch(`/api/progress/{{ patient_profile.id }}`);
+        if (response.ok) {
+            const data = await response.json();
+            createEnhancedProgressChart(data);
+        }
+    } catch (error) {
+        console.error('Error loading progress data:', error);
+        showChartError();
+    }
+}
+
+// Create enhanced progress chart with better styling
+function createEnhancedProgressChart(data) {
+    const ctx = document.getElementById('progressChart').getContext('2d');
+    
+    // Create gradient backgrounds
+    const accuracyGradient = ctx.createLinearGradient(0, 0, 0, 300);
+    accuracyGradient.addColorStop(0, 'rgba(40, 167, 69, 0.3)');
+    accuracyGradient.addColorStop(1, 'rgba(40, 167, 69, 0.05)');
+    
+    const bpmGradient = ctx.createLinearGradient(0, 0, 0, 300);
+    bpmGradient.addColorStop(0, 'rgba(0, 123, 255, 0.3)');
+    bpmGradient.addColorStop(1, 'rgba(0, 123, 255, 0.05)');
+    
+    window.progressChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.dates,
+            datasets: [
+                {
+                    label: 'Accuracy Score (%)',
+                    data: data.accuracy_scores,
+                    borderColor: '#28a745',
+                    backgroundColor: accuracyGradient,
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#28a745',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'BPM Progress',
+                    data: data.bpm_values,
+                    borderColor: '#007bff',
+                    backgroundColor: bpmGradient,
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#007bff',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    yAxisID: 'y1'
+                },
+                ...(data.baseline_cadence ? [{
+                    label: 'Baseline BPM',
+                    data: new Array(data.dates.length).fill(data.baseline_cadence),
+                    borderColor: '#6c757d',
+                    borderDash: [8, 4],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    yAxisID: 'y1'
+                }] : []),
+                ...(data.target_cadence ? [{
+                    label: 'Target BPM',
+                    data: new Array(data.dates.length).fill(data.target_cadence),
+                    borderColor: '#dc3545',
+                    borderDash: [8, 4],
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    yAxisID: 'y1'
+                }] : [])
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    display: false // We'll use custom legend
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#ffffff',
+                    bodyColor: '#ffffff',
+                    borderColor: 'rgba(240, 248, 255, 0.2)',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    displayColors: true,
+                    callbacks: {
+                        title: function(context) {
+                            return 'Session: ' + context[0].label;
+                        },
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                if (context.dataset.yAxisID === 'y') {
+                                    label += context.parsed.y + '%';
+                                } else {
+                                    label += context.parsed.y + ' BPM';
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Session Date',
+                        color: 'rgba(240, 248, 255, 0.8)',
+                        font: {
+                            size: 12,
+                            weight: 600
+                        }
+                    },
+                    ticks: {
+                        color: 'rgba(240, 248, 255, 0.7)',
+                        maxTicksLimit: 8
+                    },
+                    grid: {
+                        color: 'rgba(240, 248, 255, 0.1)',
+                        drawBorder: false
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Accuracy (%)',
+                        color: '#28a745',
+                        font: {
+                            size: 12,
+                            weight: 600
+                        }
+                    },
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        color: 'rgba(240, 248, 255, 0.7)'
+                    },
+                    grid: {
+                        color: 'rgba(240, 248, 255, 0.1)',
+                        drawBorder: false
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'BPM',
+                        color: '#007bff',
+                        font: {
+                            size: 12,
+                            weight: 600
+                        }
+                    },
+                    ticks: {
+                        color: 'rgba(240, 248, 255, 0.7)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                        color: 'rgba(240, 248, 255, 0.1)',
+                        drawBorder: false
+                    }
+                }
+            },
+            animation: {
+                duration: 2000,
+                easing: 'easeInOutQuart'
+            }
+        }
+    });
+}
+
+// Show error message if chart fails to load
+function showChartError() {
+    const chartContainer = document.querySelector('.chart-container');
+    chartContainer.innerHTML = `
+        <div class="text-center py-5">
+            <i data-feather="alert-circle" class="mb-3" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+            <p class="text-muted">Unable to load chart data. Please refresh the page.</p>
+        </div>
+    `;
+    feather.replace();
+}
+
+// Initialize table features (search, sort)
+function initializeTableFeatures() {
+    // Search functionality
+    const searchInput = document.getElementById('sessionSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            filterTable(e.target.value.toLowerCase());
+        });
+    }
+    
+    // Sort functionality
+    const sortableHeaders = document.querySelectorAll('.sortable');
+    sortableHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const column = this.dataset.column;
+            sortTable(column, this);
+        });
+    });
+}
+
+// Filter table based on search input
+function filterTable(searchTerm) {
+    const rows = document.querySelectorAll('.session-row');
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Sort table by column
+function sortTable(column, headerElement) {
+    const table = document.getElementById('sessionHistoryTable');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('.session-row'));
+    
+    // Toggle sort direction
+    const isAscending = !headerElement.classList.contains('sort-desc');
+    
+    // Remove sort classes from all headers
+    document.querySelectorAll('.sortable').forEach(h => {
+        h.classList.remove('sort-asc', 'sort-desc');
+    });
+    
+    // Add sort class to current header
+    headerElement.classList.add(isAscending ? 'sort-asc' : 'sort-desc');
+    
+    // Sort rows
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch(column) {
+            case 'date':
+                aVal = new Date(a.querySelector('.date-primary').textContent);
+                bVal = new Date(b.querySelector('.date-primary').textContent);
+                break;
+            case 'duration':
+                aVal = parseInt(a.querySelector('.duration-value').textContent) || 0;
+                bVal = parseInt(b.querySelector('.duration-value').textContent) || 0;
+                break;
+            case 'accuracy':
+                const aAccuracy = a.querySelector('.accuracy-badge');
+                const bAccuracy = b.querySelector('.accuracy-badge');
+                aVal = aAccuracy ? parseInt(aAccuracy.textContent) || 0 : 0;
+                bVal = bAccuracy ? parseInt(bAccuracy.textContent) || 0 : 0;
+                break;
+            default:
+                aVal = a.textContent;
+                bVal = b.textContent;
+        }
+        
+        if (aVal < bVal) return isAscending ? -1 : 1;
+        if (aVal > bVal) return isAscending ? 1 : -1;
+        return 0;
+    });
+    
+    // Reorder DOM elements
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+// Animate numbers on page load
+function animateNumbers() {
+    const numberElements = document.querySelectorAll('.stats-number[data-count]');
+    
+    numberElements.forEach(element => {
+        const target = parseInt(element.dataset.count);
+        const duration = 2000;
+        const increment = target / (duration / 16);
+        let current = 0;
+        
+        const updateNumber = () => {
+            current += increment;
+            if (current >= target) {
+                element.textContent = target;
+            } else {
+                element.textContent = Math.floor(current);
+                requestAnimationFrame(updateNumber);
+            }
+        };
+        
+        // Start animation after a delay
+        setTimeout(() => {
+            updateNumber();
+        }, 500);
+    });
+}
+
+// Initialize animations (simple AOS-like functionality)
+function initializeAnimations() {
+    const animatedElements = document.querySelectorAll('[data-aos]');
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('aos-animate');
+            }
+        });
+    }, {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    });
+    
+    animatedElements.forEach(el => observer.observe(el));
+}
+
+// Chart period filtering
+document.querySelectorAll('[data-period]').forEach(btn => {
+    btn.addEventListener('click', function() {
+        // Remove active class from all buttons
+        document.querySelectorAll('[data-period]').forEach(b => b.classList.remove('active'));
+        // Add active class to clicked button
+        this.classList.add('active');
+        
+        // Filter chart data (implement based on your needs)
+        const period = this.dataset.period;
+        filterChartData(period);
+    });
+});
+
+// Filter chart data by time period
+function filterChartData(period) {
+    // This would filter the chart data based on the selected period
+    // Implementation depends on your specific data structure
+    console.log('Filtering chart data for period:', period);
+}
+
+// Session details modal
+function viewSessionDetails(sessionId) {
+    // Fetch session details and show in modal
+    fetch(`/api/session/${sessionId}`)
+        .then(response => response.json())
+        .then(data => {
+            displaySessionDetails(data);
+            const modal = new bootstrap.Modal(document.getElementById('sessionDetailsModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error fetching session details:', error);
+        });
+}
+
+// Display session details in modal
+function displaySessionDetails(session) {
+    const content = document.getElementById('sessionDetailsContent');
+    content.innerHTML = `
+        <div class="session-detail-grid">
+            <div class="detail-item">
+                <label>Date & Time:</label>
+                <span>${new Date(session.start_time).toLocaleString()}</span>
+            </div>
+            <div class="detail-item">
+                <label>Duration:</label>
+                <span>${Math.floor(session.duration_seconds / 60)} minutes</span>
+            </div>
+            <div class="detail-item">
+                <label>Session Type:</label>
+                <span>${session.session_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+            </div>
+            <div class="detail-item">
+                <label>Initial BPM:</label>
+                <span>${Math.round(session.initial_bpm)}</span>
+            </div>
+            <div class="detail-item">
+                <label>Final BPM:</label>
+                <span>${Math.round(session.final_bpm || session.initial_bpm)}</span>
+            </div>
+            <div class="detail-item">
+                <label>Accuracy Score:</label>
+                <span>${session.accuracy_score ? Math.round(session.accuracy_score) + '%' : 'N/A'}</span>
+            </div>
+            ${session.notes ? `
+                <div class="detail-item full-width">
+                    <label>Notes:</label>
+                    <div class="notes-content">${session.notes}</div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Show notes modal
+function showNotes(sessionId, notes) {
+    document.getElementById('notesContent').innerHTML = `<p>${notes}</p>`;
+    const modal = new bootstrap.Modal(document.getElementById('notesModal'));
+    modal.show();
+}
+</script>
+{% endblock %}
